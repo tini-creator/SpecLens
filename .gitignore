@@ -1,0 +1,12 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.idea/
+
+# Ignore all data files
+data/
+
+# Ignore all json files
+*.json
+*.jsonl
