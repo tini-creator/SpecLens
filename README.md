@@ -1,68 +1,130 @@
-# SpecLens: 3GPP Copilot
+# SpecLens
 
-SpecLens is a locally hosted, Retrieval-Augmented Generation (RAG) pipeline designed to automate the analysis of dense telecommunications standards. By combining **LangChain**, local **FAISS** vector databases, and open-weight LLMs, this tool allows telecom engineers to query massive, unstructured 3GPP (4G/5G) specifications using natural language. This tool may be utilized for accelerating protocol stack diagnostics and feature extraction.
+A locally-hosted RAG pipeline for querying 3GPP telecommunications specifications in natural language. Point it at a spec PDF, build the index once, then ask questions like a senior engineer is reading the document.
 
+No data leaves the local machine. No API keys required.
 
+---
 
-## Key Features
+## How it works
 
+SpecLens is built in three stages:
 
+1. **Parse** — `document_parser.py` loads a 3GPP PDF and splits it into chunks using a telecom-aware strategy: it tries to break on section boundaries and paragraph breaks before ever splitting mid-sentence, preserving the integrity of Information Elements (IEs) and protocol descriptions.
 
-**Telecom-Aware Semantic Chunking:** Custom parsing logic designed specifically for 3GPP documents (e.g., TS 38.331). It intelligently splits text by protocol section headers and Information Elements (IEs) to preserve context, rather than relying on arbitrary character counts.
+2. **Embed** — `embedder.py` encodes each chunk with `sentence-transformers/all-MiniLM-L6-v2` and stores the resulting vectors in a local FAISS index.
 
-**100% Local Execution:** Utilizes local HuggingFace embeddings (`all-MiniLM-L6-v2`) and local LLM execution. No proprietary telecom data or queries are sent to external APIs (OpenAI, Anthropic, etc.), ensuring data privacy.
+3. **Query** — `rag_pipeline.py` takes a natural language question, retrieves the four most relevant chunks via FAISS, and passes them — alongside a strict grounding prompt — to `SmolLM2-1.7B-Instruct`. The model is instructed to answer only from the retrieved context, and to say so explicitly if the answer isn't there.
 
-**High-Performance Retrieval:** Built on Meta's FAISS for rapid approximate nearest neighbor (ANN) search across thousands of embedded document chunks.
+---
 
+## Requirements
 
+- Python 3.10+
+- A 3GPP specification PDF (default: `data/raw/ts_38331.pdf`)
+- CUDA-capable GPU recommended for indexing; CPU is fine for querying
 
-## Architecture
+Install dependencies:
 
+```bash
+pip install -r requirements.txt
+```
 
+---
 
-The pipeline is decoupled into distinct, scalable layers:
+## Quickstart
 
-1\. **Ingestion (`document\_parser.py`):** Extracts raw text from 3GPP PDFs and applies telecom-specific recursive chunking.
+### 1. Place your PDF
 
-2\. **Storage (`embedder.py`):** Converts chunks into dense vector representations and manages the local FAISS index.
+```
+data/raw/ts_38331.pdf
+```
 
-3\. **Orchestration (`rag\_pipeline.py`):** Handles the LangChain retrieval chain, fusing the user's query with the retrieved context and injecting it into a strict system prompt.
+### 2. Build the FAISS index
 
-4\. **Interface (`main.py`):** The CLI entry point for executing queries.
+```bash
+python src/embedder.py --build-index
+```
 
+To use a different PDF:
 
+```bash
+python src/embedder.py --build-index --pdf-path data/raw/your_spec.pdf
+```
 
-## Project Structure
+This only needs to be run once. The index is saved to `vector_store/`.
 
+### 3. Query the pipeline
 
+**Single question:**
 
-```text
+```bash
+python src/main.py "What triggers a Radio Link Failure?"
+```
 
+**Interactive mode** (no question argument):
+
+```bash
+python src/main.py
+```
+
+```
+Query> What is the purpose of the RRCReconfiguration message?
+
+--- LLM ANSWER ---
+The RRCReconfiguration message is used by the network to modify the UE's
+radio resource configuration, including bearer setup, release, and modification...
+
+--- RETRIEVED SOURCES ---
+[1] 3GPP TS 38.331 - Page 312
+[2] 3GPP TS 38.331 - Page 314
+[3] 3GPP TS 38.331 - Page 189
+[4] 3GPP TS 38.331 - Page 315
+```
+
+**GPU acceleration:**
+
+```bash
+python src/main.py --gpu "What are the T310 timer conditions?"
+```
+
+---
+
+## Project structure
+
+```
 speclens/
-
 ├── data/
-
-│   ├── raw/                  # Place the 3GPP TS 38.331 PDF here
-
-│   └── processed/            # Intermediate chunked text (optional)
-
-├── vector\_store/             # FAISS index artifacts (index.faiss, index.pkl)
-
-├── src/                      
-
-│   ├── \_\_init\_\_.py
-
-│   ├── document\_parser.py    # Custom PDF parsing and semantic chunking
-
-│   ├── embedder.py           # HuggingFace embedding logic
-
-│   ├── rag\_pipeline.py       # LangChain QA chain orchestration
-
+│   ├── raw/                  # Input PDFs
+│   └── processed/            # Optional intermediate output
+├── vector_store/             # Generated FAISS index (index.faiss, index.pkl)
+├── src/
+│   ├── __init__.py
+│   ├── document_parser.py    # PDF loading and semantic chunking
+│   ├── embedder.py           # Embedding model and FAISS index management
+│   ├── rag_pipeline.py       # LangChain retrieval chain and LLM orchestration
 │   └── main.py               # CLI entry point
+├── requirements.txt
+└── README.md
+```
 
-├── .env                      # Environment configurations (model paths)
+---
 
-├── requirements.txt          # Python dependencies
+## Models
 
-└── README.md                 # Project documentation
+| Component | Model | Notes |
+|---|---|---|
+| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` | 384-dim, runs on CPU |
+| LLM | `HuggingFaceTB/SmolLM2-1.7B-Instruct` | 1.7B params, GPU recommended |
 
+Both models are downloaded automatically from HuggingFace on first run.
+
+---
+
+## Design notes
+
+**Why SmolLM2?** It's small enough to run on a laptop GPU (or slowly on CPU), follows instructions reliably, and stays within the retrieved context rather than hallucinating spec details.
+
+**Why k=4 chunks?** 3GPP IEs often span multiple sections. Four chunks at 1500 characters each gives ~6000 characters of context — enough to cover a full IE definition and its surrounding protocol logic without overflowing the model's context window.
+
+**Why local FAISS over a hosted vector DB?** Even though telecom specs are open-source, this example would be directly applicable to a scenario with proprietary/confidential technical documents. Keeping everything local means no query text or document content is transmitted externally.
