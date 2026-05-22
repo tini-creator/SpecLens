@@ -72,14 +72,15 @@ python src/main.py
 Query> What is the purpose of the RRCReconfiguration message?
 
 --- LLM ANSWER ---
-The RRCReconfiguration message is used by the network to modify the UE's
-radio resource configuration, including bearer setup, release, and modification...
+The RRCReconfiguration message is used to modify an RRC connection. It may convey information for measurement configuration, mobility control, radio resource configuration (including RBs, MAC main configuration and physical channel configuration), and AS security configuration. The RRCReconfiguration message is applied to unicast of NR side link communication.
+
 
 --- RETRIEVED SOURCES ---
-[1] 3GPP TS 38.331 - Page 312
-[2] 3GPP TS 38.331 - Page 314
-[3] 3GPP TS 38.331 - Page 189
-[4] 3GPP TS 38.331 - Page 315
+[1] 3GPP TS 38.331 - Page 1113
+[2] 3GPP TS 38.331 - Page 367
+[3] 3GPP TS 38.331 - Page 344
+[4] 3GPP TS 38.331 - Page 386
+[5] 3GPP TS 38.331 - Page 376
 ```
 
 **GPU acceleration:**
