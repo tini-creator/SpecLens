@@ -9,10 +9,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # Configure basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# ── paths ─────────────────────────────────────────────────────────────────────
+# sys.path extension lets sibling modules be imported when running this file directly
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
-RAW_FILE     = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "data/raw", "ts_38331.pdf"))
 
 
 class TelecomDocumentParser:
@@ -37,10 +35,11 @@ class TelecomDocumentParser:
             chunk_overlap=self.chunk_overlap,
             length_function=len,
             separators=[
-                "\n\n",  # Major section breaks / Paragraphs
-                "\n",  # Line breaks (common in 3GPP tables/lists)
-                " ",  # Words
-                ""  # Characters (Fallback only)
+                "\n– ",  # 3GPP message/IE header (en-dash) — split HERE, keep header+body together
+                "\n\n",
+                "\n",
+                " ",
+                "",
             ]
         )
 
@@ -78,7 +77,8 @@ if __name__ == "__main__":
     # Run `python src/document_parser.py` directly to verify
     # the chunking strategy before connecting it to the vector database.
 
-    # Create dummy file for testing if it doesn't exist
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    RAW_FILE = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "data/raw", "ts_38331.pdf"))
     os.makedirs(os.path.dirname(RAW_FILE), exist_ok=True)
     if not os.path.exists(RAW_FILE):
         print(f"Please place your 3GPP PDF at {RAW_FILE} to run the test.")
