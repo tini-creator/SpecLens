@@ -14,18 +14,24 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 
 class VectorStoreManager:
-    def __init__(self, index_dir: str = "vector_store/"):
+    def __init__(self, index_dir: str = "vector_store/", use_gpu: bool = False):
         """
         Initializes the embedding model and index directory.
+
+        Args:
+            index_dir: Path where the FAISS index is saved/loaded.
+            use_gpu: If True, runs the embedding model on CUDA. Defaults to False
+                     (CPU is sufficient for inference; GPU matters mainly during bulk indexing).
         """
         self.index_dir = index_dir
 
         # We use a lightweight, highly efficient local embedding model.
         # 'all-MiniLM-L6-v2' maps sentences & paragraphs to a 384 dimensional dense vector space.
         self.model_name = "sentence-transformers/all-MiniLM-L6-v2"
-        logging.info(f"Initializing embedding model: {self.model_name} (This runs 100% locally)")
+        device = "cuda" if use_gpu else "cpu"
+        logging.info(f"Initializing embedding model: {self.model_name} on {device} (This runs 100% locally)")
 
-        model_kwargs = {'device': 'cpu'}  # Change to 'cuda' if running on the GPU
+        model_kwargs = {'device': device}
         encode_kwargs = {'normalize_embeddings': True}  # Normalization improves cosine similarity search
 
         self.embeddings = HuggingFaceEmbeddings(
@@ -76,7 +82,7 @@ class VectorStoreManager:
 
 
 if __name__ == "__main__":
-    # Set up command line arguments so this can be run from the terminal
+    # CLI configuration
     parser = argparse.ArgumentParser(description="Build or test the FAISS Vector Store for SpecLens.")
     parser.add_argument("--build-index", action="store_true", help="Parse the PDF and build the FAISS index.")
     parser.add_argument("--pdf-path", type=str, default="data/raw/ts_38331.pdf", help="Path to the 3GPP PDF.")
